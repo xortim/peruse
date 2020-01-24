@@ -1,0 +1,90 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: peruse
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: peruse-view
+rules:
+  - apiGroups: ["", "extensions", "apps"]
+    resources: ["deployments", "replicasets", "pods", "ingresses", "services"]
+    verbs: ["get", "list" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: peruse-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: peruse-view
+subjects:
+  - kind: ServiceAccount
+    name: peruse
+    namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: peruse
+data:
+  NAMESPACE: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: peruse
+  labels:
+    app: peruse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: peruse
+  template:
+    metadata:
+      labels:
+        app: peruse
+    spec:
+      serviceAccountName: peruse
+      containers:
+        - name: peruse
+          image: registry.local:5000/peruse:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: peruse
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: peruse
+  labels:
+    app: peruse
+spec:
+  ports:
+    - name: http
+      port: 8000
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: peruse
+  type: ClusterIP
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: peruse
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            backend:
+              serviceName: peruse
+              servicePort: 8000

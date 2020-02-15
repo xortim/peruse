@@ -7,29 +7,40 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/table"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-// GetDeploymentServices returns a ServiceList whose selectors match the labels on passed deployment
-func GetDeploymentServices(clientset *kubernetes.Clientset, deployment v1.Deployment) (*apiv1.ServiceList, error) {
-	// get all services
-	servicesClient := clientset.CoreV1().Services(deployment.Namespace)
-	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
+// ServiceDeployments contains a service and its selected deployments
+type ServiceDeployments struct {
+	Service     apiv1.Service
+	Deployments *v1.DeploymentList
+}
+
+// GetServiceDeployments returns a ServiceList whose selectors match the labels on passed deployment
+func GetServiceDeployments(clientset *kubernetes.Clientset, namespace string) ([]ServiceDeployments, error) {
+	deploymentsClient := clientset.AppsV1().Deployments(namespace)
+
+	zap.S().Debugf("Getting all services in namespace %q\n", namespace)
+	servicesClient := clientset.CoreV1().Services(namespace)
 	svcList, err := servicesClient.List(metav1.ListOptions{FieldSelector: ""})
 	if err != nil {
 		return nil, err
 	}
 
-	result := &apiv1.ServiceList{Items: []apiv1.Service{}}
+	var result []ServiceDeployments
 	for _, svc := range svcList.Items {
-
+		if svc.Spec.Type == "ExternalName" {
+			continue
+		}
 		selector := metav1.FormatLabelSelector(&metav1.LabelSelector{MatchLabels: svc.Spec.Selector})
 		if selector == "<none>" {
 			continue
 		}
+
 		list, err := deploymentsClient.List(metav1.ListOptions{
 			LabelSelector: selector,
 		})
@@ -37,12 +48,19 @@ func GetDeploymentServices(clientset *kubernetes.Clientset, deployment v1.Deploy
 			return result, err
 		}
 
-		if DeploymentListContains(list, deployment) {
-			result.Items = append(result.Items, svc)
-		}
+		result = append(result, ServiceDeployments{
+			Service:     svc,
+			Deployments: list,
+		})
+
 	}
 
 	return result, nil
+}
+
+// SelectsDeployment is a helper for determining if a deployment pointer exists in a DeploymentList
+func (sd *ServiceDeployments) SelectsDeployment(deployment v1.Deployment) bool {
+	return DeploymentListContains(sd.Deployments, deployment)
 }
 
 // DeploymentListContains is a helper for determining if a deployment pointer exists in a DeploymentList

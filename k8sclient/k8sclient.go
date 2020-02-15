@@ -78,24 +78,32 @@ func GetDeploymentIngressPaths(clientset *kubernetes.Clientset, namespace string
 		zap.S().Fatalf(err.Error())
 	}
 
+	serviceDeployments, _ := GetServiceDeployments(clientset, namespace)
+	if err != nil {
+		return nil, err
+	}
+
 	dips := DeploymentIngressPaths{}
 	for _, deployment := range dList.Items {
 		dip := DeploymentIngressPath{}
 		dip.Deployment = deployment
 
+		zap.S().Debugf("Getting pods associated with deployment %q\n", dip.Deployment.Name)
 		pods, err := DeploymentPods(clientset, dip.Deployment)
 		if err != nil {
 			return nil, err
 		}
 		dip.Pods = pods.Items
 
-		services, _ := GetDeploymentServices(clientset, deployment)
-		if err != nil {
-			return nil, err
+		zap.S().Debugf("Finding the services that select deployment %q", dip.Deployment.Name)
+		for _, sd := range serviceDeployments {
+			if sd.SelectsDeployment(deployment) {
+				dip.Services = append(dip.Services, sd.Service)
+			}
 		}
-		dip.Services = services.Items
 
-		for _, s := range services.Items {
+		for _, s := range dip.Services {
+			zap.S().Debugf("Finding ingresses that select service %q", s.Name)
 			ingresses, _ := GetServiceIngresses(clientset, s)
 			dip.Ingresses = ingresses.Items
 		}

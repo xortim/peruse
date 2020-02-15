@@ -45,6 +45,7 @@ func newRootCmd() *cobra.Command {
 }
 
 func rootRun(cmd *cobra.Command, args []string) error {
+	zap.S().Debugf("Root run")
 	k8s, err := k8sclient.NewClient("", viper.GetString("kubeconfig"))
 	dips, err := k8sclient.GetDeploymentIngressPaths(k8s, viper.GetString("namespace"))
 	if err != nil {

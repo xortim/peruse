@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,10 +29,10 @@ func servRun(cmd *cobra.Command, arts []string) error {
 	r.HandleFunc("/healthz", HealthHandler)
 	http.Handle("/", r)
 	srv := &http.Server{
-		Handler:      r,
+		Handler:      handlers.CombinedLoggingHandler(os.Stdout, r),
 		Addr:         ":8000",
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
 	}
 	return srv.ListenAndServe()
 }
@@ -53,12 +55,13 @@ func HomeHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	zap.S().Debugf("Home Handler")
 	dips, err := k8sclient.GetDeploymentIngressPaths(k8s, viper.GetString("namespace"))
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
+		w.Write([]byte(err.Error()))
 		return
 	}
-	_ = dips
 	t := dips.NewTable()
 	t.SetHTMLCSSClass("table table-hover table-sm")
 	w.Write([]byte(`

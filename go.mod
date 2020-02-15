@@ -6,6 +6,7 @@ require (
 	github.com/go-openapi/strfmt v0.19.4 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
+	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.3
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jedib0t/go-pretty v4.3.0+incompatible

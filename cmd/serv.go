@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"time"
 
@@ -9,9 +10,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/xortim/peruse/cache"
 	"github.com/xortim/peruse/k8sclient"
 	"go.uber.org/zap"
 )
+
+var cacheStorage cache.Store
 
 func newServCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,9 +27,37 @@ func newServCmd() *cobra.Command {
 	return cmd
 }
 
+func cached(duration string, handler func(w http.ResponseWriter, r *http.Request)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		content := cacheStorage.Get(r.RequestURI)
+		if content != nil {
+			w.Write(content)
+		} else {
+			c := httptest.NewRecorder()
+			handler(c, r)
+
+			for k, v := range c.HeaderMap {
+				w.Header()[k] = v
+			}
+
+			w.WriteHeader(c.Code)
+			content := c.Body.Bytes()
+
+			if d, err := time.ParseDuration(duration); err == nil {
+				cacheStorage.Set(r.RequestURI, content, d)
+			}
+
+			w.Write(content)
+		}
+
+	})
+}
+
 func servRun(cmd *cobra.Command, arts []string) error {
+	cacheStorage = cache.NewStorage()
+
 	r := mux.NewRouter()
-	r.HandleFunc("/", HomeHandler)
+	r.Handle("/", cached("1h", HomeHandler))
 	r.HandleFunc("/healthz", HealthHandler)
 	http.Handle("/", r)
 	srv := &http.Server{

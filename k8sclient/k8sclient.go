@@ -105,7 +105,7 @@ func GetDeploymentIngressPaths(clientset *kubernetes.Clientset, namespace string
 		for _, s := range dip.Services {
 			zap.S().Debugf("Finding ingresses that select service %q", s.Name)
 			ingresses, _ := GetServiceIngresses(clientset, s)
-			dip.Ingresses = ingresses.Items
+			dip.Ingresses = append(dip.Ingresses, ingresses.Items...)
 		}
 		dips = append(dips, dip)
 	}

@@ -3,6 +3,7 @@ package k8sclient
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -111,8 +112,9 @@ func (dips DeploymentIngressPaths) NewTable() table.Writer {
 		for _, ing := range dip.Ingresses {
 			ingClass := ing.ObjectMeta.Annotations[IngressClassAnnotation]
 			ingStr = append(ingStr, fmt.Sprintf("%s: %s", ing.Name, ingClass))
-			for _, url := range IngressURLs(ing) {
-				ingStr = append(ingStr, url.String())
+			for _, uri := range IngressURLs(ing) {
+				link, _ := url.PathUnescape(uri.String())
+				ingStr = append(ingStr, link+"\n")
 			}
 		}
 		row = append(row, strings.Join(ingStr, "\n"))
